@@ -1,0 +1,79 @@
+alertmanager:
+  enabled: false
+pushgateway:
+  enabled: false
+server:
+  resources:
+    requests:
+      memory: 400Mi
+      cpu: 200m
+    limits:
+      memory: 800Mi
+      cpu: 400m
+service:
+  type: NodePort
+  nodePort: 30090
+  annotations: {}
+  labels: {}
+  targetPort: 9090
+
+nodeExporter:
+  enabled: true
+  hostNetwork: true
+  hostPID: true
+  tolerations:
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+  securityContext:
+    runAsNonRoot: false
+    runAsUser: 0
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  args:
+    - --path.procfs=/host/proc
+    - --path.sysfs=/host/sys
+    - --web.listen-address=0.0.0.0:9100
+  volumeMounts:
+    - name: proc
+      mountPath: /host/proc
+      readOnly: true
+    - name: sys
+      mountPath: /host/sys
+      readOnly: true
+volumes:
+  - name: proc
+    hostPath:
+      path: /proc
+      type: Directory
+  - name: sys
+    hostPath:
+      path: /sys
+      type: Directory
+
+additionalScrapeConfigs:
+  - job_name: 'web'
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_label_io_kompose_service]
+        action: keep
+        regex: web
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        target_label: __address__
+        regex: (.+):(?:\d+);(\d+)
+        replacement: ${1}:${2}
+
